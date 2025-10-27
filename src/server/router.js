@@ -12,7 +12,10 @@ import { createCheck } from './examples/create-check/index.js'
 import { createConfirmation } from './examples/create-confirmation/index.js'
 import { about } from './about/index.js'
 import { health } from './health/index.js'
+import { auth } from './auth/index.js'
+import { dashboard } from './dashboard/index.js'
 import { serveStaticFiles } from './common/helpers/serve-static-files.js'
+import { config } from '../config/config.js'
 
 export const router = {
   plugin: {
@@ -22,6 +25,18 @@ export const router = {
 
       // Health-check route. Used by platform to check if service is running, do not remove!
       await server.register([health])
+
+      // Authentication routes (only if auth is configured)
+      const authConfigured =
+        config.get('defraId.oidcDiscoveryUrl') &&
+        config.get('defraId.clientId') &&
+        config.get('defraId.clientSecret')
+
+      if (authConfigured) {
+        await server.register([auth])
+        // Protected routes (require authentication)
+        await server.register([dashboard])
+      }
 
       // Application specific routes, add your own routes here
       await server.register([

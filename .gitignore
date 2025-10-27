@@ -5,8 +5,13 @@
 .public
 node_modules
 npm-debug.log
+frontend.log
 coverage
 .cache
 .envrc
 tsconfig.tsbuildinfo
 .env
+.tool-versions
+package-lock.json
+trade-frontend-oauth-flow.md
+trade-frontend-oauth-flow-plantuml.md

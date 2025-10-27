@@ -14,6 +14,39 @@ services:
     networks:
       - cdp-tenant
 
+  defra-id-stub:
+    image: defradigital/cdp-defra-id-stub:latest
+    ports:
+      - '3200:3200'
+    depends_on:
+      - redis
+    environment:
+      PORT: 3200
+      # Allow OAuth callbacks to the correct endpoint
+      REDIRECT_URLS: http://localhost:3000/auth/callback
+      # Stub expects OIDC_ prefixed environment variables
+      OIDC_CLIENT_ID: ${DEFRA_ID_CLIENT_ID:-test-client}
+      OIDC_CLIENT_SECRET: ${DEFRA_ID_CLIENT_SECRET:-test-secret}
+      SERVICE_ID: ${DEFRA_ID_SERVICE_ID:-test-service}
+      # Use single instance for local development
+      USE_SINGLE_INSTANCE_CACHE: true
+      # Use memory cache to avoid Redis connection issues during registration
+      SESSION_CACHE_ENGINE: memory
+    networks:
+      - cdp-tenant
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'curl',
+          '-f',
+          'http://localhost:3200/cdp-defra-id-stub/.well-known/openid-configuration'
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
   localstack:
     profiles: ["mongo", "postgres"]
     image: localstack/localstack:3.0.2

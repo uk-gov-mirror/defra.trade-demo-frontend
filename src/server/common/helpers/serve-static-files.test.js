@@ -1,3 +1,4 @@
+import '../test-helpers/mock-oidc-discovery.js'
 import { startServer } from './start-server.js'
 import { statusCodes } from '../constants/status-codes.js'
 

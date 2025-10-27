@@ -1,0 +1,27 @@
+{% extends "layouts/page.njk" %}
+
+{% block content %}
+  <div class="govuk-grid-row">
+    <div class="govuk-grid-column-two-thirds">
+      <h1 class="govuk-heading-xl">{{ heading }}</h1>
+
+      <p class="govuk-body">
+        You are logged in as: <strong>{{ user.email }}</strong>
+      </p>
+
+      <p class="govuk-body">
+        Display name: {{ user.displayName }}
+      </p>
+
+      <p class="govuk-body">
+        Contact ID: {{ user.contactId }}
+      </p>
+
+      <hr class="govuk-section-break govuk-section-break--m govuk-section-break--visible">
+
+      <p class="govuk-body">
+        <a href="/auth/logout" class="govuk-link">Sign out</a>
+      </p>
+    </div>
+  </div>
+{% endblock %}

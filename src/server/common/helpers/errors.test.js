@@ -1,3 +1,4 @@
+import '../test-helpers/mock-oidc-discovery.js'
 import { vi } from 'vitest'
 
 import { catchAll } from './errors.js'

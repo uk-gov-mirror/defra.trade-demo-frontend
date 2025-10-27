@@ -24,29 +24,41 @@ Node.js/Hapi.js frontend demonstrating CDP platform integration with a Java Spri
 - Docker and Docker Compose
 - Backend repository: `../trade-demo-backend` (MongoDB) or `../trade-demo-postgres-backend` (PostgreSQL)
 
-### Choose Your Backend
-
-The frontend works with either MongoDB or PostgreSQL backend. Choose one:
+### Start the Application
 
 ```bash
-make mongo      # MongoDB backend stack
-make postgres   # PostgreSQL backend stack
+# Start all backend services (Redis, DEFRA ID stub, LocalStack, MongoDB, Backend)
+make start
+
+# Access the frontend at http://localhost:3000
 ```
 
-Both commands start:
+This starts:
 
-- **Docker**: Redis, LocalStack, Database, Backend (Java on port 8085)
+- **Docker**: Redis, DEFRA ID stub, LocalStack, MongoDB, Backend (Java on port 8085)
 - **Native**: Frontend with hot reload (port 3000)
 
-Access at http://localhost:3000
+### Register Test User
+
+Before you can log in, register a test user with the DEFRA ID stub:
+
+```bash
+make register-user
+```
+
+This creates a test user (email: test@example.com) in the stub. You can now visit http://localhost:3000/dashboard and log in.
+
+**Note**: The stub uses in-memory storage, so you'll need to re-run this command if you restart the Docker services.
 
 ### Other Commands
 
 ```bash
-make down       # Stop all services and remove volumes
-make logs       # Show logs from running services
-make ps         # Show service status
-make help       # Show all commands
+make debug       # Start in debug mode (Node.js debugger on port 9229)
+make stop        # Stop all services and remove volumes
+make logs        # Show logs from running services
+make ps          # Show service status
+make test        # Run tests
+make help        # Show all commands
 ```
 
 ## Development Workflow
@@ -75,9 +87,219 @@ The frontend expects backend at `http://localhost:8085` by default. Override wit
 ```bash
 npm test              # Run all tests
 npm run test:watch    # Watch mode
+npm run test:config   # Run just src/config/config.test.js
 npm run lint          # Lint JS and SCSS
 npm run format        # Auto-fix formatting
 ```
+
+#### Running tests in IntelliJ IDEA/WebStorm
+
+- Open the root folder in the IDE.
+- IntelliJ detects Vitest automatically from vitest.config.js.
+- Option A: Use the NPM tool window and run the script: test:config.
+- Option B: Right‑click the test file src/config/config.test.js and choose “Run 'config.test.js'”.
+  - If the context menu shows Jest instead of Vitest, go to Settings > Languages & Frameworks > JavaScript > Testing and select Vitest as the test runner.
+- For watch/debug: Right‑click the file and choose Debug, or run: npm run test:watch.
+
+## Testing Authentication
+
+The application uses DEFRA Customer Identity Service (DEFRA ID) for authentication via OAuth2/OIDC. Protected routes (like `/dashboard`) require users to log in.
+
+### Quick Start
+
+```bash
+# Start all services
+make start
+
+# Register a test user (required before first login)
+make register-user
+
+# Access: http://localhost:3000/dashboard
+```
+
+### Browser Testing
+
+#### Complete Authentication Flow
+
+**Step 1: Register Test User**
+
+```bash
+make register-user
+# Creates test user: test@example.com
+```
+
+**Step 2: Access Protected Route**
+
+```
+Navigate to: http://localhost:3000/dashboard
+Expected: Redirect to DEFRA ID stub authorization page
+```
+
+**Step 3: Authenticate**
+
+```
+On DEFRA ID stub page:
+  - User is automatically authenticated (pre-registered)
+  - Redirects back to http://localhost:3000/auth/callback
+  - Then redirects to http://localhost:3000/
+```
+
+**Step 4: View Dashboard**
+
+```
+Navigate to: http://localhost:3000/dashboard
+Expected: See dashboard with:
+  - "You are logged in as: test@example.com"
+  - Display name
+  - Contact ID
+```
+
+**Step 5: Verify Session Persistence**
+
+```
+Navigate between pages - no re-authentication required
+Check DevTools → Application → Cookies:
+  - 'session' cookie present (Yar session)
+  - Contains encrypted session data
+```
+
+**Step 6: Logout**
+
+```
+Click "Sign out" → Redirects to DEFRA ID → Redirects to homepage
+Try accessing /dashboard → Redirects to /auth/login
+```
+
+### curl Testing
+
+#### Test 1: Unauthenticated Access
+
+```bash
+curl -v http://localhost:3000/dashboard
+# Expected: 302 redirect to /auth/login
+```
+
+#### Test 2: OAuth2 Authorization Request
+
+```bash
+curl -v http://localhost:3000/auth/login 2>&1 | grep -i "location:"
+# Expected: Location points to DEFRA ID stub with:
+#   - redirect_uri=http://localhost:3000/auth/callback
+#   - client_id=test-client
+#   - response_type=code
+#   - serviceId=test-service (DEFRA-specific requirement)
+#   - scope=openid profile email offline_access
+```
+
+#### Test 3: Register User via API
+
+```bash
+# Register a test user
+make register-user
+
+# Verify user exists
+curl http://localhost:3200/cdp-defra-id-stub/API/register/86a7607c-a1e7-41e5-a0b6-a41680d05a2a
+# Expected: User details JSON
+```
+
+#### Test 4: Complete OAuth2 Flow
+
+```bash
+# Get authorization URL
+AUTH_URL=$(curl -s -D - http://localhost:3000/auth/login | grep -i "location:" | cut -d' ' -f2 | tr -d '\r')
+
+# Extract state parameter
+STATE=$(echo "$AUTH_URL" | grep -oP 'state=\K[^&]+')
+
+# Simulate callback (requires stub cooperation)
+curl -c cookies.txt -L "http://localhost:3000/auth/callback?code=test-code&state=$STATE"
+
+# Access dashboard with cookie
+curl -b cookies.txt http://localhost:3000/dashboard
+# Expected: 200 OK with dashboard HTML
+```
+
+#### Test 4: Session Inspection (Redis)
+
+```bash
+# Connect to Redis
+docker compose exec redis redis-cli
+
+# List sessions
+KEYS session:*
+
+# View session data
+GET "session:abc123..."
+# Expected JSON with: contactId, email, displayName, accessToken, etc.
+```
+
+### Authentication Flow Architecture
+
+```
+Unauthenticated User Flow:
+┌─────────────────────────────────────────────────────────────────┐
+│ User → /dashboard → No session? → Redirect to /auth/login       │
+│                                          ↓                       │
+│                                    Bell intercepts              │
+│                                          ↓                       │
+│                               Redirect to DEFRA ID stub         │
+│                                          ↓                       │
+│                               User authenticates                │
+│                                          ↓                       │
+│                    Stub redirects to /auth/callback?code=...    │
+│                                          ↓                       │
+│                               Bell exchanges code for tokens    │
+│                                          ↓                       │
+│                    Callback creates session in Redis            │
+│                                          ↓                       │
+│                         Set 'yar' cookie with session ID        │
+│                                          ↓                       │
+│                               Redirect to homepage              │
+│                                          ↓                       │
+│                            User navigates to /dashboard         │
+│                                          ↓                       │
+│                  Session validated → Dashboard renders          │
+└─────────────────────────────────────────────────────────────────┘
+
+Authenticated User (subsequent requests):
+┌─────────────────────────────────────────────────────────────────┐
+│ User → /dashboard → Has 'yar' cookie?                           │
+│                           ↓                                      │
+│                  session-cookie strategy validates              │
+│                           ↓                                      │
+│                  Lookup session in Redis                        │
+│                           ↓                                      │
+│                  Session valid? → Dashboard renders             │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Troubleshooting
+
+**Login redirects but fails:**
+
+```bash
+# Check stub is running
+curl http://localhost:3939/cdp-defra-id-stub/.well-known/openid-configuration
+
+# Check logs
+docker compose logs defra-id-stub
+```
+
+**Session not persisting:**
+
+```bash
+# Verify Redis
+docker compose ps redis
+docker compose exec redis redis-cli ping  # Expected: PONG
+
+# Check for sessions
+docker compose exec redis redis-cli KEYS "session:*"
+```
+
+**"Unknown authentication strategy" error:**
+
+- Auth strategies must be registered BEFORE routes
+- Check src/server/server.js initialization order
 
 ### Architecture: Native Frontend + Docker Infrastructure
 

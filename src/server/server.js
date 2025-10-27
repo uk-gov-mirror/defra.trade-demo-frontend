@@ -15,6 +15,8 @@ import { sessionCache } from './common/helpers/session-cache/session-cache.js'
 import { getCacheEngine } from './common/helpers/session-cache/cache-engine.js'
 import { secureContext } from '@defra/hapi-secure-context'
 import { contentSecurityPolicy } from './common/helpers/content-security-policy.js'
+import { setupDefraIdStrategy } from './common/helpers/auth/defra-id-strategy.js'
+import { setupSessionStrategy } from './common/helpers/auth/session-strategy.js'
 
 export async function createServer() {
   setupProxy()
@@ -85,9 +87,22 @@ export async function createServer() {
       }
     },
     Scooter,
-    contentSecurityPolicy,
-    router // Register all the controllers/routes defined in src/server/router.js
+    contentSecurityPolicy
   ])
+
+  // Setup authentication strategies BEFORE registering routes that use them
+  const defraIdConfigured =
+    config.get('defraId.oidcDiscoveryUrl') &&
+    config.get('defraId.clientId') &&
+    config.get('defraId.clientSecret')
+
+  if (defraIdConfigured) {
+    await setupDefraIdStrategy(server)
+    await setupSessionStrategy(server)
+  }
+
+  // Register routes AFTER auth strategies are set up
+  await server.register([router])
 
   server.ext('onPreResponse', catchAll)
 

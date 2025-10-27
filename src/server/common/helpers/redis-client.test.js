@@ -20,7 +20,7 @@ describe('#buildRedisClient', () => {
     test('Should instantiate a single Redis client', () => {
       expect(Redis).toHaveBeenCalledWith({
         db: 0,
-        host: '127.0.0.1',
+        host: config.get('redis.host'),
         keyPrefix: 'trade-demo-frontend:',
         port: 6379
       })
@@ -40,7 +40,7 @@ describe('#buildRedisClient', () => {
 
     test('Should instantiate a Redis Cluster client', () => {
       expect(Cluster).toHaveBeenCalledWith(
-        [{ host: '127.0.0.1', port: 6379 }],
+        [{ host: config.get('redis.host'), port: 6379 }],
         {
           dnsLookup: expect.any(Function),
           keyPrefix: 'trade-demo-frontend:',

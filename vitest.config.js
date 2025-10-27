@@ -5,6 +5,7 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     clearMocks: true,
+    setupFiles: ['./src/test-setup.js'],
     coverage: {
       provider: 'v8',
       reportsDirectory: './coverage',

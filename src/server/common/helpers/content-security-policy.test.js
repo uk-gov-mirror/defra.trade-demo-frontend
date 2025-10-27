@@ -1,3 +1,4 @@
+import '../test-helpers/mock-oidc-discovery.js'
 import { createServer } from '../../server.js'
 
 describe('#contentSecurityPolicy', () => {

@@ -58,6 +58,11 @@ describe('context and cache', () => {
               current: false,
               text: 'About',
               href: '/about'
+            },
+            {
+              current: false,
+              text: 'Dashboard',
+              href: '/dashboard'
             }
           ],
           serviceName: 'trade-demo-frontend',
@@ -147,6 +152,11 @@ describe('context and cache', () => {
               current: false,
               text: 'About',
               href: '/about'
+            },
+            {
+              current: false,
+              text: 'Dashboard',
+              href: '/dashboard'
             }
           ],
           serviceName: 'trade-demo-frontend',
